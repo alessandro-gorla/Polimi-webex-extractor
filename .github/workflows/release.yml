@@ -28,16 +28,29 @@ jobs:
           cp manifest_firefox.json _ff/manifest.json
 
       - name: Firma XPI via AMO (unlisted)
+        id: sign
+        # timeout 300s: se AMO è in revisione manuale (prima sottomissione)
+        # il comando non blocca il job indefinitamente.
+        # continue-on-error: la release viene creata anche con XPI non firmato.
+        continue-on-error: true
         run: |
           web-ext sign \
             --source-dir _ff \
             --artifacts-dir _signed \
             --channel unlisted \
             --api-key ${{ secrets.AMO_API_KEY }} \
-            --api-secret ${{ secrets.AMO_API_SECRET }}
+            --api-secret ${{ secrets.AMO_API_SECRET }} \
+            --timeout 300000
 
-      - name: Rinomina XPI firmato
-        run: cp _signed/*.xpi recman_firefox.xpi
+      - name: Prepara XPI finale (firmato o non firmato come fallback)
+        run: |
+          if ls _signed/*.xpi 2>/dev/null; then
+            cp _signed/*.xpi recman_firefox.xpi
+            echo "XPI firmato da AMO."
+          else
+            cd _ff && zip -r ../recman_firefox.xpi . && cd ..
+            echo "::warning::XPI non firmato (AMO in revisione manuale). Installabile solo su Firefox Dev Edition."
+          fi
 
       - name: Crea Release
         uses: softprops/action-gh-release@v2

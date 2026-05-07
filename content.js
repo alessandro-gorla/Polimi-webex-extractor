@@ -210,7 +210,7 @@
     list.style.cssText = "flex:1;overflow-y:auto;";
     rows.forEach((r, i) => {
       if (!r.tid) WARN(`buildPanel: riga ${i} senza tid — l'item non potrà essere aggiornato in real-time.`);
-      list.appendChild(buildItem(r, captured[r.tid]?.webexUrl, i));
+      list.appendChild(buildItem(r, captured[r.tid]?.playbackUrl, i));
     });
     panel.appendChild(list);
 
@@ -277,7 +277,8 @@
 
   // Aggiorna status bar e tutti gli item dopo il secondo polling
   async function refreshPanel(rows, captured) {
-    const done  = Object.keys(captured).length;
+    // Conta solo i link per cui abbiamo il playbackUrl definitivo (HOP 2 completato)
+    const done  = rows.filter((r) => captured[r.tid]?.playbackUrl).length;
     const total = rows.length;
     LOG(`refreshPanel — ${done}/${total} link catturati.`);
 
@@ -298,14 +299,14 @@
       WARN("  2. Il parametro RCID non era presente nel redirect");
       WARN("  3. La richiesta non ha completato prima del timeout 800ms");
       // Stampa i tid mancanti per debug
-      rows.filter((r) => !captured[r.tid]).forEach((r) => {
+      rows.filter((r) => !captured[r.tid]?.playbackUrl).forEach((r) => {
         WARN(`  mancante: transferId=${r.tid} topic="${r.topic}"`);
       });
     }
 
     // Aggiorna gli item ancora in "attesa" con i link arrivati
     rows.forEach((r) => {
-      if (captured[r.tid]) updatePanelItem(r.tid, captured[r.tid].webexUrl);
+      if (captured[r.tid]?.playbackUrl) updatePanelItem(r.tid, captured[r.tid].playbackUrl);
     });
 
     // Aggiorna il pulsante "Copia tutto" con i dati freschi
@@ -379,7 +380,7 @@
 
     const txt = rows
       .map((r, i) => {
-        const url = captured[r.tid]?.webexUrl || "N/A";
+        const url = captured[r.tid]?.playbackUrl || "N/A";
         return `${i + 1}. ${r.date} | ${r.topic} (${r.dur})\n${url}`;
       })
       .join("\n\n");

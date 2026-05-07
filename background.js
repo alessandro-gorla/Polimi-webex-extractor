@@ -1,8 +1,8 @@
 // background.js
-// Service worker MV3: intercetta i redirect HTTP PoliMi → Webex
-// prima che il browser applichi la policy CORS/redirect (inaccessibili
-// da content script o fetch normale). Usa l'API webRequest, disponibile
-// solo nel background.
+// Service worker MV3: intercetta la catena di redirect HTTP in due hop:
+//   Hop 1 — PoliMi (evn_preview_link) → Webex ldr.php?RCID=X
+//   Hop 2 — Webex ldr.php?RCID=X     → /recordingservice/.../playback
+// Entrambi vengono catturati via onBeforeRedirect prima del blocco CORS.
 
 const LOG = (...a) => console.log("[RecMan BG]", ...a);
 const WARN = (...a) => console.warn("[RecMan BG]", ...a);
@@ -11,103 +11,152 @@ const ERR  = (...a) => console.error("[RecMan BG]", ...a);
 LOG("Service worker avviato.");
 
 // ──────────────────────────────────────────────────────────────
-// Listener redirect: cattura URL Webex dai redirect RecMan
+// Listener redirect: cattura entrambi gli hop
+// Filtro esteso a polimi.it + webex.com per coprire tutta la chain.
 // ──────────────────────────────────────────────────────────────
 chrome.webRequest.onBeforeRedirect.addListener(
   (details) => {
     const { url, redirectUrl, requestId, tabId } = details;
 
-    LOG(`onBeforeRedirect — tabId=${tabId} requestId=${requestId}`);
-    LOG(`  url originale : ${url}`);
-    LOG(`  redirect verso: ${redirectUrl}`);
+    // ── HOP 1: PoliMi (evn_preview_link) → Webex ldr.php?RCID=X ──
+    if (url.includes("evn_preview_link")) {
+      LOG(`HOP 1 — tabId=${tabId} requestId=${requestId}`);
+      LOG(`  url originale : ${url}`);
+      LOG(`  redirect verso: ${redirectUrl}`);
 
-    // Filtro 1: la richiesta deve essere un link RecMan (evn_preview_link)
-    if (!url.includes("evn_preview_link")) {
-      LOG("  → SKIP: non è un evn_preview_link");
-      return;
-    }
-
-    // Filtro 2: il redirect deve puntare a Webex con parametro RCID
-    if (!redirectUrl.includes("webex.com")) {
-      WARN("  → SKIP: redirect non va su webex.com (va su:", redirectUrl.split("?")[0], ")");
-      return;
-    }
-    if (!redirectUrl.includes("RCID=")) {
-      WARN("  → SKIP: redirect Webex senza parametro RCID — URL inatteso:", redirectUrl);
-      return;
-    }
-
-    // Estrae transfer_id dall'URL originale (es. ?transfer_id=12345)
-    const transferMatch = url.match(/transfer_id=(\d+)/);
-    if (!transferMatch) {
-      ERR("  → ERRORE: evn_preview_link senza transfer_id — URL:", url);
-      return;
-    }
-
-    // Estrae RCID dall'URL Webex (es. ?RCID=ab12cd...)
-    const rcidMatch = redirectUrl.match(/RCID=([a-f0-9]+)/i);
-    if (!rcidMatch) {
-      ERR("  → ERRORE: redirect Webex senza RCID estraibile — URL:", redirectUrl);
-      return;
-    }
-
-    const transferId = transferMatch[1];
-    const webexUrl   = redirectUrl;
-    LOG(`  ✓ Catturato — transferId=${transferId}  RCID=${rcidMatch[1]}`);
-
-    // ── Salvataggio in storage persistente ──────────────────────
-    // Il service worker può essere killato tra un evento e l'altro,
-    // quindi usiamo storage.local come unica fonte di verità.
-    chrome.storage.local.get(["capturedLinks"], (data) => {
-      if (chrome.runtime.lastError) {
-        ERR("storage.local.get fallito:", chrome.runtime.lastError.message);
+      if (!redirectUrl.includes("webex.com")) {
+        WARN("  → SKIP: redirect non va su webex.com (va su:", redirectUrl.split("?")[0], ")");
+        return;
+      }
+      if (!redirectUrl.includes("RCID=")) {
+        WARN("  → SKIP: redirect Webex senza parametro RCID — URL inatteso:", redirectUrl);
         return;
       }
 
-      const capturedLinks = data.capturedLinks || {};
-      const isNew = !capturedLinks[transferId];
+      const transferMatch = url.match(/transfer_id=(\d+)/);
+      if (!transferMatch) {
+        ERR("  → ERRORE: evn_preview_link senza transfer_id — URL:", url);
+        return;
+      }
 
-      capturedLinks[transferId] = {
-        webexUrl,
-        capturedAt: Date.now(),
-      };
+      const rcidMatch = redirectUrl.match(/RCID=([a-f0-9]+)/i);
+      if (!rcidMatch) {
+        ERR("  → ERRORE: redirect Webex senza RCID estraibile — URL:", redirectUrl);
+        return;
+      }
 
-      chrome.storage.local.set({ capturedLinks }, () => {
+      const transferId = transferMatch[1];
+      const rcid       = rcidMatch[1];
+      const ldrUrl     = redirectUrl;
+
+      LOG(`  ✓ HOP 1 catturato — transferId=${transferId}  RCID=${rcid}`);
+
+      // Salva la mappatura RCID → transferId per collegare l'HOP 2
+      // e il ldrUrl come dato intermedio (verrà sovrascritto dal playbackUrl)
+      chrome.storage.local.get(["capturedLinks", "rcidMap"], (data) => {
         if (chrome.runtime.lastError) {
-          ERR("storage.local.set fallito:", chrome.runtime.lastError.message);
+          ERR("storage.get fallito (HOP 1):", chrome.runtime.lastError.message);
           return;
         }
-        LOG(`  Storage aggiornato — totale link salvati: ${Object.keys(capturedLinks).length} (nuovo=${isNew})`);
-      });
-    });
 
-    // ── Notifica real-time al content script ─────────────────────
-    // Manda il messaggio solo se il pannello è già aperto (il content
-    // script potrebbe non essere in ascolto se il pannello non esiste).
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (chrome.runtime.lastError) {
-        WARN("tabs.query fallito:", chrome.runtime.lastError.message);
-        return;
-      }
-      if (!tabs || tabs.length === 0) {
-        WARN("  Nessun tab attivo trovato — messaggio non inviato.");
-        return;
-      }
+        const capturedLinks = data.capturedLinks || {};
+        const rcidMap       = data.rcidMap || {};
 
-      const targetTab = tabs[0];
-      LOG(`  Invio linkCaptured a tab ${targetTab.id} (${targetTab.url?.split("?")[0]})`);
+        rcidMap[rcid] = transferId;
+        capturedLinks[transferId] = {
+          ldrUrl,
+          playbackUrl: null,
+          capturedAt: Date.now(),
+        };
 
-      chrome.tabs
-        .sendMessage(targetTab.id, { type: "linkCaptured", transferId, webexUrl })
-        .then(() => LOG(`  → messaggio consegnato a tab ${targetTab.id}`))
-        .catch((err) => {
-          // Normale se il pannello non è aperto o il content script non è caricato.
-          WARN(`  → sendMessage fallito per tab ${targetTab.id}:`, err.message);
+        chrome.storage.local.set({ capturedLinks, rcidMap }, () => {
+          if (chrome.runtime.lastError) {
+            ERR("storage.set fallito (HOP 1):", chrome.runtime.lastError.message);
+            return;
+          }
+          LOG(`  Storage HOP 1 aggiornato — rcid=${rcid} → transferId=${transferId}`);
+
+          // Triggera HOP 2: il background fa lui stesso fetch di ldr.php
+          // con redirect:"manual" così onBeforeRedirect cattura il prossimo salto
+          // senza che il browser debba seguire il redirect a livello di tab.
+          LOG(`  Avvio fetch HOP 2 → ${ldrUrl}`);
+          fetch(ldrUrl, { redirect: "manual" })
+            .then((res) => LOG(`  fetch ldrUrl — type=${res.type} status=${res.status}`))
+            .catch((err) => WARN(`  fetch ldrUrl fallito (può essere normale):`, err.message));
         });
-    });
+      });
+
+      return;
+    }
+
+    // ── HOP 2: Webex ldr.php?RCID=X → /recordingservice/.../playback ──
+    if (url.includes("ldr.php") && url.includes("RCID=")) {
+      LOG(`HOP 2 — requestId=${requestId}`);
+      LOG(`  url ldr.php   : ${url}`);
+      LOG(`  redirect verso: ${redirectUrl}`);
+
+      if (!redirectUrl.includes("/recordingservice/") && !redirectUrl.includes("/playback")) {
+        WARN("  → SKIP: redirect da ldr.php non è verso recordingservice — URL:", redirectUrl);
+        return;
+      }
+
+      const rcidMatch = url.match(/RCID=([a-f0-9]+)/i);
+      if (!rcidMatch) {
+        ERR("  → ERRORE: ldr.php senza RCID nell'URL:", url);
+        return;
+      }
+
+      const rcid       = rcidMatch[1];
+      const playbackUrl = redirectUrl;
+
+      LOG(`  ✓ HOP 2 catturato — RCID=${rcid}  playbackUrl=${playbackUrl}`);
+
+      // Recupera il transferId dal rcidMap salvato nell'HOP 1
+      chrome.storage.local.get(["capturedLinks", "rcidMap"], (data) => {
+        if (chrome.runtime.lastError) {
+          ERR("storage.get fallito (HOP 2):", chrome.runtime.lastError.message);
+          return;
+        }
+
+        const rcidMap       = data.rcidMap || {};
+        const capturedLinks = data.capturedLinks || {};
+        const transferId    = rcidMap[rcid];
+
+        if (!transferId) {
+          WARN(`  → RCID ${rcid} non trovato in rcidMap — HOP 1 non ancora completato?`);
+          return;
+        }
+
+        capturedLinks[transferId] = {
+          ...capturedLinks[transferId],
+          playbackUrl,
+        };
+
+        chrome.storage.local.set({ capturedLinks }, () => {
+          if (chrome.runtime.lastError) {
+            ERR("storage.set fallito (HOP 2):", chrome.runtime.lastError.message);
+            return;
+          }
+          LOG(`  Storage HOP 2 aggiornato — transferId=${transferId}  playbackUrl=${playbackUrl}`);
+
+          // Notifica il content script con il playbackUrl definitivo
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (!tabs?.length) return;
+            chrome.tabs
+              .sendMessage(tabs[0].id, { type: "linkCaptured", transferId, webexUrl: playbackUrl })
+              .then(() => LOG(`  → messaggio linkCaptured consegnato a tab ${tabs[0].id}`))
+              .catch((err) => WARN(`  → sendMessage fallito:`, err.message));
+          });
+        });
+      });
+
+      return;
+    }
+
+    // Qualsiasi altro redirect verso webex.com — ignorato silenziosamente
   },
-  // Monitora tutte le richieste verso PoliMi
-  { urls: ["*://*.polimi.it/*"] }
+  // Monitora sia PoliMi (HOP 1) che Webex (HOP 2)
+  { urls: ["*://*.polimi.it/*", "*://politecnicomilano.webex.com/*"] }
 );
 
 // ──────────────────────────────────────────────────────────────
@@ -119,7 +168,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "getLinks") {
     chrome.storage.local.get(["capturedLinks"], (data) => {
       if (chrome.runtime.lastError) {
-        ERR("getLinks — storage.local.get fallito:", chrome.runtime.lastError.message);
+        ERR("getLinks — storage.get fallito:", chrome.runtime.lastError.message);
         sendResponse({ links: {} });
         return;
       }
@@ -127,17 +176,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       LOG(`getLinks → restituiti ${Object.keys(links).length} link`);
       sendResponse({ links });
     });
-    return true; // necessario per risposta asincrona
+    return true;
   }
 
   if (msg.type === "clearLinks") {
-    chrome.storage.local.remove(["capturedLinks"], () => {
+    chrome.storage.local.remove(["capturedLinks", "rcidMap"], () => {
       if (chrome.runtime.lastError) {
-        ERR("clearLinks — storage.local.remove fallito:", chrome.runtime.lastError.message);
+        ERR("clearLinks — storage.remove fallito:", chrome.runtime.lastError.message);
         sendResponse({ ok: false });
         return;
       }
-      LOG("clearLinks → storage svuotato.");
+      LOG("clearLinks → storage svuotato (capturedLinks + rcidMap).");
       sendResponse({ ok: true });
     });
     return true;

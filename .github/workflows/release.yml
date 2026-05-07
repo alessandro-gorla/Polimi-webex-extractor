@@ -18,12 +18,12 @@ jobs:
       - name: Crea ZIP Chrome (MV3)
         run: zip recman_chrome.zip manifest.json background.js content.js README.md
 
-      - name: Crea ZIP Firefox (MV2)
+      - name: Crea XPI Firefox (MV2)
         run: |
           mkdir -p _ff
           cp background.js content.js README.md _ff/
           cp manifest_firefox.json _ff/manifest.json
-          cd _ff && zip -r ../recman_firefox.zip . && cd ..
+          cd _ff && zip -r ../recman_firefox.xpi . && cd ..
           rm -rf _ff
 
       - name: Crea Release
@@ -37,9 +37,17 @@ jobs:
             3. Seleziona la cartella estratta
 
             ## Installazione Firefox
-            1. Scarica **recman_firefox.zip** ed estrailo in una cartella
-            2. Vai su `about:debugging#/runtime/this-firefox` → **Carica componente aggiuntivo temporaneo...**
-            3. Seleziona il file `manifest.json` dentro la cartella estratta
+            Scarica **recman_firefox.xpi**, poi scegli il metodo:
+
+            **Metodo A — Firefox Developer Edition** *(installazione permanente, nessun account richiesto)*
+            1. Apri `about:config` → imposta `xpinstall.signatures.required` = `false`
+            2. Apri `about:addons` → ⚙️ → **Installa componente aggiuntivo da file...**
+            3. Seleziona `recman_firefox.xpi`
+
+            **Metodo B — Firefox normale** *(temporanea, rimossa al riavvio)*
+            1. Apri `about:debugging#/runtime/this-firefox`
+            2. Clicca **Carica componente aggiuntivo temporaneo...**
+            3. Seleziona `recman_firefox.xpi`
           files: |
             recman_chrome.zip
-            recman_firefox.zip
+            recman_firefox.xpi

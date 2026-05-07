@@ -142,10 +142,17 @@ chrome.webRequest.onBeforeRedirect.addListener(
           // Notifica il content script con il playbackUrl definitivo
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             if (!tabs?.length) return;
-            chrome.tabs
-              .sendMessage(tabs[0].id, { type: "linkCaptured", transferId, webexUrl: playbackUrl })
-              .then(() => LOG(`  → messaggio linkCaptured consegnato a tab ${tabs[0].id}`))
-              .catch((err) => WARN(`  → sendMessage fallito:`, err.message));
+            chrome.tabs.sendMessage(
+              tabs[0].id,
+              { type: "linkCaptured", transferId, webexUrl: playbackUrl },
+              () => {
+                if (chrome.runtime.lastError) {
+                  WARN(`  → sendMessage fallito:`, chrome.runtime.lastError.message);
+                  return;
+                }
+                LOG(`  → messaggio linkCaptured consegnato a tab ${tabs[0].id}`);
+              }
+            );
           });
         });
       });

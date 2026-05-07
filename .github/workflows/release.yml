@@ -15,18 +15,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Crea ZIP estensione
-        run: zip recman_extension.zip manifest.json background.js content.js README.md
+      - name: Crea ZIP Chrome (MV3)
+        run: zip recman_chrome.zip manifest.json background.js content.js README.md
+
+      - name: Crea ZIP Firefox (MV2)
+        run: |
+          mkdir -p _ff
+          cp background.js content.js README.md _ff/
+          cp manifest_firefox.json _ff/manifest.json
+          cd _ff && zip -r ../recman_firefox.zip . && cd ..
+          rm -rf _ff
 
       - name: Crea Release
         uses: softprops/action-gh-release@v2
         with:
           name: "RecMan PoliMi ${{ github.ref_name }}"
           body: |
-            ## Installazione
+            ## Installazione Chrome
+            1. Scarica **recman_chrome.zip** ed estrailo in una cartella
+            2. Vai su `chrome://extensions` → attiva **Modalità sviluppatore** → **Carica estensione non pacchettizzata**
+            3. Seleziona la cartella estratta
 
-            1. Scarica **recman_extension.zip** qui sotto
-            2. Estrailo in una cartella
-            3. Vai su `chrome://extensions` → attiva **Modalità sviluppatore** → **Carica estensione non pacchettizzata**
-            4. Seleziona la cartella estratta
-          files: recman_extension.zip
+            ## Installazione Firefox
+            1. Scarica **recman_firefox.zip** ed estrailo in una cartella
+            2. Vai su `about:debugging#/runtime/this-firefox` → **Carica componente aggiuntivo temporaneo...**
+            3. Seleziona il file `manifest.json` dentro la cartella estratta
+          files: |
+            recman_chrome.zip
+            recman_firefox.zip

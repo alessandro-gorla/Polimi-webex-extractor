@@ -1,6 +1,6 @@
 # RecMan PoliMi – Link Webex
 
-Estensione Chrome che estrae automaticamente i link diretti alle registrazioni Webex dalla pagina RecMan del Politecnico di Milano, senza dover cliccare ogni lezione una per una.
+Estensione per **Chrome** e **Firefox** che estrae automaticamente i link diretti alle registrazioni Webex dalla pagina RecMan del Politecnico di Milano, senza dover cliccare ogni lezione una per una.
 
 ## Il problema
 
@@ -31,29 +31,38 @@ Pannello laterale aggiorna ogni lezione con il link Webex diretto
 
 ## Installazione
 
-> L'estensione non è sul Chrome Web Store — va installata manualmente in modalità sviluppatore.
+Dalla pagina [**Releases**](../../releases/latest) scarica lo ZIP per il tuo browser.
 
-### 1. Scarica i file
+---
 
-Clicca **Code → Download ZIP** in alto a destra su questa pagina GitHub, poi **estrai** lo ZIP in una cartella sul tuo computer (es. `Documenti/recman_extension`).
+### Chrome
 
-> In alternativa, se hai Git: `git clone https://github.com/<utente>/recman_extension.git`
-
-### 2. Carica l'estensione in Chrome
-
-1. Apri Chrome e vai all'indirizzo **`chrome://extensions`**
-2. Attiva il toggle **"Modalità sviluppatore"** in alto a destra
-3. Clicca **"Carica estensione non pacchettizzata"**
-4. Seleziona la **cartella estratta** (quella che contiene `manifest.json`, non lo ZIP)
-5. L'estensione compare nella lista — fatto!
+1. Scarica **`recman_chrome.zip`** ed estrailo in una cartella (es. `Documenti/recman_chrome`)
+2. Apri **`chrome://extensions`**
+3. Attiva il toggle **"Modalità sviluppatore"** in alto a destra
+4. Clicca **"Carica estensione non pacchettizzata"**
+5. Seleziona la cartella estratta (quella con `manifest.json` dentro)
 
 > ⚠️ Non cancellare la cartella dopo l'installazione: Chrome la legge direttamente ogni volta.
 
+---
+
+### Firefox
+
+1. Scarica **`recman_firefox.zip`** ed estrailo in una cartella (es. `Documenti/recman_firefox`)
+2. Apri **`about:debugging#/runtime/this-firefox`**
+3. Clicca **"Carica componente aggiuntivo temporaneo..."**
+4. Seleziona il file `manifest.json` dentro la cartella estratta
+
+> ⚠️ Su Firefox l'estensione caricata temporaneamente viene rimossa al riavvio del browser. Per un'installazione permanente è necessario pubblicarla su [addons.mozilla.org](https://addons.mozilla.org).
+
+---
+
 ### Aggiornare a una nuova versione
 
-1. Sostituisci i file nella cartella con quelli nuovi (o fai `git pull`)
-2. Vai su `chrome://extensions` e clicca l'icona **↺** accanto all'estensione
-3. Ricarica la pagina RecMan
+1. Scarica lo ZIP della nuova versione da [Releases](../../releases/latest) e sostituisci i file nella cartella
+2. **Chrome**: `chrome://extensions` → clicca **↺** → ricarica la pagina RecMan
+3. **Firefox**: `about:debugging` → **Ricarica** accanto all'estensione → ricarica la pagina RecMan
 
 ## Utilizzo
 
@@ -76,19 +85,22 @@ Clicca **Code → Download ZIP** in alto a destra su questa pagina GitHub, poi *
 
 ```
 recman_extension/
-├── manifest.json     # Configurazione estensione (MV3)
-├── background.js     # Service worker: intercetta redirect via webRequest API
-└── content.js        # Iniettato su RecMan: UI pannello + fetch paralleli
+├── manifest.json          # Chrome MV3 (service worker)
+├── manifest_firefox.json  # Firefox MV2 (background script persistente)
+├── background.js          # Condiviso: intercetta redirect via webRequest API
+└── content.js             # Condiviso: UI pannello + fetch paralleli
 ```
 
 ## Note tecniche
 
-- **Manifest V3** — usa service worker al posto delle background page
-- Il fetch usa `redirect: "manual"` invece di `redirect: "follow"`: con "follow" Chrome segue il redirect fino a Webex, il CORS blocca l'intera chain e `onBeforeRedirect` non scatta mai
+- **Chrome MV3** — usa service worker; `host_permissions` è una chiave separata
+- **Firefox MV2** — usa background script con `persistent: true`; le host permissions vanno dentro `permissions`; richiede `"tabs"` esplicito per `tabs.query/sendMessage`
+- Il fetch usa `redirect: "manual"` invece di `redirect: "follow"`: con "follow" il CORS blocca l'intera chain prima che `onBeforeRedirect` nel background possa scattare
+- I link vengono risolti in due hop: `evn_preview_link → ldr.php?RCID=X → /recordingservice/.../playback`
 - Se l'estensione viene ricaricata mentre la pagina è aperta, il vecchio content script mostra un banner "Ricarica la pagina" perché il suo contesto `chrome.runtime` è stato invalidato
 
 ## Limitazioni
 
-- Funziona solo su Chrome/Chromium (usa API `chrome.webRequest` non disponibili su Firefox)
 - Richiede che tu sia già autenticato su RecMan (usa i cookie di sessione esistenti)
-- I link Webex estratti includono il parametro `RCID` che identifica la sessione — potrebbero scadere nel tempo
+- I link Webex estratti potrebbero scadere nel tempo
+- Su Firefox l'installazione è temporanea (rimossa al riavvio) senza pubblicazione su AMO

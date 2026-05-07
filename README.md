@@ -31,19 +31,29 @@ Pannello laterale aggiorna ogni lezione con il link Webex diretto
 
 ## Installazione
 
-> L'estensione non è sul Chrome Web Store — va installata in modalità sviluppatore.
+> L'estensione non è sul Chrome Web Store — va installata manualmente in modalità sviluppatore.
 
-1. Scarica o clona questa repository
-2. Apri Chrome e vai su `chrome://extensions`
-3. Attiva **"Modalità sviluppatore"** (toggle in alto a destra)
-4. Clicca **"Carica estensione non pacchettizzata"**
-5. Seleziona la cartella del progetto
-6. L'estensione appare nella barra degli strumenti
+### 1. Scarica i file
 
-### Aggiornare dopo modifiche al codice
+Clicca **Code → Download ZIP** in alto a destra su questa pagina GitHub, poi **estrai** lo ZIP in una cartella sul tuo computer (es. `Documenti/recman_extension`).
 
-1. `chrome://extensions` → clicca l'icona **↺** sull'estensione
-2. **Ricarica la pagina RecMan** (il vecchio content script viene sostituito)
+> In alternativa, se hai Git: `git clone https://github.com/<utente>/recman_extension.git`
+
+### 2. Carica l'estensione in Chrome
+
+1. Apri Chrome e vai all'indirizzo **`chrome://extensions`**
+2. Attiva il toggle **"Modalità sviluppatore"** in alto a destra
+3. Clicca **"Carica estensione non pacchettizzata"**
+4. Seleziona la **cartella estratta** (quella che contiene `manifest.json`, non lo ZIP)
+5. L'estensione compare nella lista — fatto!
+
+> ⚠️ Non cancellare la cartella dopo l'installazione: Chrome la legge direttamente ogni volta.
+
+### Aggiornare a una nuova versione
+
+1. Sostituisci i file nella cartella con quelli nuovi (o fai `git pull`)
+2. Vai su `chrome://extensions` e clicca l'icona **↺** accanto all'estensione
+3. Ricarica la pagina RecMan
 
 ## Utilizzo
 

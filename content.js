@@ -128,23 +128,31 @@
     const fetchResults = await Promise.allSettled(
       rows.map((r) => {
         LOG(`  fetch → ${r.href}`);
-        // redirect: "manual" è fondamentale:
-        // - "follow" faceva seguire il redirect fino a webex.com, dove il CORS
-        //   bloccava l'intera chain PRIMA che onBeforeRedirect nel background
-        //   potesse intercettare → "Failed to fetch" e nessun link catturato.
-        // - "manual" ferma il browser al primo redirect (il 302 PoliMi→Webex):
-        //   onBeforeRedirect scatta, il background salva l'URL, e il fetch
-        //   restituisce una risposta opaca (type="opaqueredirect", status=0)
-        //   senza errori CORS.
-        return fetch(r.href, { credentials: "include", redirect: "manual" })
+        // redirect: "manual" ferma il browser al primo redirect (PoliMi→ldr.php):
+        // onBeforeRedirect scatta nel background prima del blocco CORS.
+        // AbortController: su Firefox fetch() con redirect:"manual" può bloccarsi
+        // indefinitamente su redirect cross-origin — il timeout di 10s lo sblocca.
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => {
+          ctrl.abort();
+          WARN(`  fetch TIMEOUT (10s) — transferId=${r.tid}, abort forzato`);
+        }, 10000);
+
+        return fetch(r.href, { credentials: "include", redirect: "manual", signal: ctrl.signal })
           .then((res) => {
+            clearTimeout(timer);
             LOG(`  fetch OK — transferId=${r.tid} type=${res.type} status=${res.status}`);
             if (res.type !== "opaqueredirect") {
-              WARN(`  transferId=${r.tid}: risposta non è un redirect (type=${res.type}) — il server non ha rediretto verso Webex?`);
+              WARN(`  transferId=${r.tid}: type=${res.type} — redirect non avvenuto?`);
             }
           })
           .catch((err) => {
-            ERR(`  fetch ERRORE — transferId=${r.tid}: ${err.message}`);
+            clearTimeout(timer);
+            if (err.name === "AbortError") {
+              WARN(`  fetch abortito dopo timeout — transferId=${r.tid}`);
+            } else {
+              ERR(`  fetch ERRORE — transferId=${r.tid}: ${err.message}`);
+            }
           });
       })
     );
@@ -154,9 +162,10 @@
     const err = fetchResults.filter((r) => r.status === "rejected").length;
     LOG(`Fetch completati — fulfilled=${ok} rejected=${err}`);
 
-    // Attende un po' per dare tempo al background di salvare tutti i redirect
-    LOG("Attesa 800ms prima del secondo controllo storage...");
-    await sleep(800);
+    // Attende che il background processi tutti i redirect intercettati.
+    // Su Firefox può servire più tempo di Chrome.
+    LOG("Attesa 1500ms prima del secondo controllo storage...");
+    await sleep(1500);
 
     const final = await getStoredLinks();
     LOG(`Link in storage dopo 800ms: ${Object.keys(final).length}/${rows.length}`);
@@ -343,8 +352,17 @@
   function getStoredLinks() {
     return new Promise((resolve) => {
       LOG("getStoredLinks — richiesta a background...");
+
+      // Timeout di sicurezza: in Firefox il callback di sendMessage può
+      // non essere mai invocato se il background non risponde entro N ms.
+      const timer = setTimeout(() => {
+        WARN("getStoredLinks — timeout 5s, background non ha risposto.");
+        resolve({});
+      }, 5000);
+
       try {
         chrome.runtime.sendMessage({ type: "getLinks" }, (res) => {
+          clearTimeout(timer);
           if (chrome.runtime.lastError) {
             ERR("getStoredLinks — sendMessage fallito:", chrome.runtime.lastError.message);
             resolve({});
@@ -357,7 +375,7 @@
       } catch (e) {
         // "Extension context invalidated": l'estensione è stata ricaricata
         // mentre il content script era già in esecuzione sulla pagina.
-        // Soluzione: ricaricare la pagina per ottenere un nuovo contesto.
+        clearTimeout(timer);
         ERR("getStoredLinks — contesto estensione non valido:", e.message);
         WARN("Ricarica la pagina per ripristinare il contesto dell'estensione.");
         showContextInvalidatedBanner();

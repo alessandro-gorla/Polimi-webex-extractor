@@ -227,27 +227,54 @@
     LOG("Pannello costruito e aggiunto al DOM.");
   }
 
+  // Popola un elemento item con DOM API (no innerHTML con valori dinamici).
+  // Riusato da buildItem e updatePanelItem per evitare warning AMO linter.
+  function renderItemContent(el, r, webexUrl) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+
+    const meta = document.createElement("div");
+    meta.style.cssText = "font-size:11px;color:#999;";
+
+    const topicEl = document.createElement("div");
+
+    if (webexUrl) {
+      meta.textContent = `${r.date} · ${r.dur}`;
+      topicEl.style.cssText = "font-weight:600;color:#111;margin:2px 0;";
+      topicEl.textContent = r.topic;
+
+      const link = document.createElement("a");
+      link.href = webexUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.style.cssText = "font-size:12px;color:#0055cc;word-break:break-all;";
+      link.textContent = webexUrl;
+
+      el.appendChild(meta);
+      el.appendChild(topicEl);
+      el.appendChild(link);
+    } else {
+      meta.textContent = r.date;
+      topicEl.style.cssText = "color:#111;margin:2px 0;";
+      topicEl.textContent = r.topic;
+
+      const wait = document.createElement("span");
+      wait.style.cssText = "color:#aaa;font-size:12px;";
+      wait.textContent = "⏳ in attesa…";
+
+      el.appendChild(meta);
+      el.appendChild(topicEl);
+      el.appendChild(wait);
+    }
+  }
+
   // Crea un singolo elemento lista per una lezione
   function buildItem(r, webexUrl, idx) {
     const div = document.createElement("div");
     div.id = "_rm_item_" + r.tid;
     div.style.cssText = "padding:10px 16px;border-bottom:1px solid #f0f0f0;";
 
-    if (webexUrl) {
-      LOG(`  buildItem [${idx}] tid=${r.tid} — link GIÀ disponibile`);
-      div.innerHTML = `
-        <div style="font-size:11px;color:#999;">${r.date} · ${r.dur}</div>
-        <div style="font-weight:600;color:#111;margin:2px 0;">${r.topic}</div>
-        <a href="${webexUrl}" target="_blank" rel="noopener"
-           style="font-size:12px;color:#0055cc;word-break:break-all;">${webexUrl}</a>`;
-    } else {
-      LOG(`  buildItem [${idx}] tid=${r.tid} — in attesa redirect`);
-      div.innerHTML = `
-        <div style="font-size:11px;color:#999;">${r.date}</div>
-        <div style="color:#111;margin:2px 0;">${r.topic}</div>
-        <span style="color:#aaa;font-size:12px;">⏳ in attesa…</span>`;
-    }
-
+    LOG(`  buildItem [${idx}] tid=${r.tid} — ${webexUrl ? "link disponibile" : "in attesa redirect"}`);
+    renderItemContent(div, r, webexUrl);
     return div;
   }
 
@@ -255,12 +282,10 @@
   function updatePanelItem(transferId, webexUrl) {
     const el = document.getElementById("_rm_item_" + transferId);
     if (!el) {
-      // Può succedere se il pannello non è aperto o il tid non esiste in tabella
       WARN(`updatePanelItem: elemento #_rm_item_${transferId} non trovato nel DOM.`);
       return;
     }
 
-    // Ri-legge i metadati dalla tabella (potrebbe essere cambiata)
     const rows = getTableData();
     const r    = rows.find((x) => x.tid === transferId);
     if (!r) {
@@ -268,11 +293,7 @@
     }
 
     LOG(`updatePanelItem — transferId=${transferId} url=${webexUrl}`);
-    el.innerHTML = `
-      <div style="font-size:11px;color:#999;">${r?.date || ""} · ${r?.dur || ""}</div>
-      <div style="font-weight:600;color:#111;margin:2px 0;">${r?.topic || ""}</div>
-      <a href="${webexUrl}" target="_blank" rel="noopener"
-         style="font-size:12px;color:#0055cc;word-break:break-all;">${webexUrl}</a>`;
+    renderItemContent(el, r || { date: "", dur: "", topic: "" }, webexUrl);
   }
 
   // Aggiorna status bar e tutti gli item dopo il secondo polling

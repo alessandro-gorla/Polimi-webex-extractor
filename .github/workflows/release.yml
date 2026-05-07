@@ -40,7 +40,7 @@ jobs:
             --channel unlisted \
             --api-key ${{ secrets.AMO_API_KEY }} \
             --api-secret ${{ secrets.AMO_API_SECRET }} \
-            --timeout 300000
+            --timeout 900000
 
       - name: Prepara XPI finale (firmato o non firmato come fallback)
         run: |

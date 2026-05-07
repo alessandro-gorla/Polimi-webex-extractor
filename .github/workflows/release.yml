@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Crea ZIP estensione
+        run: zip recman_extension.zip manifest.json background.js content.js README.md
+
+      - name: Crea Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "RecMan PoliMi ${{ github.ref_name }}"
+          body: |
+            ## Installazione
+
+            1. Scarica **recman_extension.zip** qui sotto
+            2. Estrailo in una cartella
+            3. Vai su `chrome://extensions` → attiva **Modalità sviluppatore** → **Carica estensione non pacchettizzata**
+            4. Seleziona la cartella estratta
+          files: recman_extension.zip

@@ -49,20 +49,11 @@ Dalla pagina [**Releases**](../../releases/latest) scarica lo ZIP per il tuo bro
 
 ### Firefox
 
-Scarica **`recman_firefox.xpi`** dalla pagina Releases, poi scegli il metodo:
+1. Scarica **`recman_firefox.xpi`** dalla pagina Releases
+2. Apri **`about:addons`** → icona ⚙️ → **"Installa componente aggiuntivo da file..."**
+3. Seleziona `recman_firefox.xpi` — installazione permanente, nessuna configurazione richiesta
 
-**Metodo A — Firefox Developer Edition** *(installazione permanente, nessun account richiesto)*
-1. Scarica e installa [Firefox Developer Edition](https://www.mozilla.org/firefox/developer/)
-2. Apri `about:config` → cerca `xpinstall.signatures.required` → impostalo a `false`
-3. Apri `about:addons` → ⚙️ → **Installa componente aggiuntivo da file...**
-4. Seleziona `recman_firefox.xpi` — l'estensione rimane installata tra i riavvii
-
-**Metodo B — Firefox normale** *(temporanea, rimossa al riavvio)*
-1. Apri `about:debugging#/runtime/this-firefox`
-2. Clicca **"Carica componente aggiuntivo temporaneo..."**
-3. Seleziona `recman_firefox.xpi`
-
-> Il formato `.xpi` è uno ZIP rinominato. Per un'installazione permanente su Firefox normale è necessario pubblicare l'estensione su [addons.mozilla.org](https://addons.mozilla.org) (gratuito anche per estensioni private/non in elenco) — Mozilla la firma e restituisce un XPI installabile ovunque.
+> L'XPI nella Release è **firmato da Mozilla** tramite AMO, quindi funziona su qualsiasi versione di Firefox senza modificare impostazioni.
 
 ---
 
@@ -111,4 +102,4 @@ recman_extension/
 
 - Richiede che tu sia già autenticato su RecMan (usa i cookie di sessione esistenti)
 - I link Webex estratti potrebbero scadere nel tempo
-- Su Firefox l'installazione permanente richiede Firefox Developer Edition (con firma disabilitata) oppure la firma gratuita tramite AMO
+- Su Firefox l'XPI nella Release è già firmato da Mozilla — installabile su qualsiasi versione di Firefox

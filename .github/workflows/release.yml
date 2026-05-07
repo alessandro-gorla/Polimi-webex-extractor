@@ -18,13 +18,26 @@ jobs:
       - name: Crea ZIP Chrome (MV3)
         run: zip recman_chrome.zip manifest.json background.js content.js README.md
 
-      - name: Crea XPI Firefox (MV2)
+      - name: Installa web-ext
+        run: npm install -g web-ext
+
+      - name: Prepara directory Firefox
         run: |
           mkdir -p _ff
           cp background.js content.js README.md _ff/
           cp manifest_firefox.json _ff/manifest.json
-          cd _ff && zip -r ../recman_firefox.xpi . && cd ..
-          rm -rf _ff
+
+      - name: Firma XPI via AMO (unlisted)
+        run: |
+          web-ext sign \
+            --source-dir _ff \
+            --artifacts-dir _signed \
+            --channel unlisted \
+            --api-key ${{ secrets.AMO_API_KEY }} \
+            --api-secret ${{ secrets.AMO_API_SECRET }}
+
+      - name: Rinomina XPI firmato
+        run: cp _signed/*.xpi recman_firefox.xpi
 
       - name: Crea Release
         uses: softprops/action-gh-release@v2
@@ -37,17 +50,9 @@ jobs:
             3. Seleziona la cartella estratta
 
             ## Installazione Firefox
-            Scarica **recman_firefox.xpi**, poi scegli il metodo:
-
-            **Metodo A — Firefox Developer Edition** *(installazione permanente, nessun account richiesto)*
-            1. Apri `about:config` → imposta `xpinstall.signatures.required` = `false`
+            1. Scarica **recman_firefox.xpi**
             2. Apri `about:addons` → ⚙️ → **Installa componente aggiuntivo da file...**
-            3. Seleziona `recman_firefox.xpi`
-
-            **Metodo B — Firefox normale** *(temporanea, rimossa al riavvio)*
-            1. Apri `about:debugging#/runtime/this-firefox`
-            2. Clicca **Carica componente aggiuntivo temporaneo...**
-            3. Seleziona `recman_firefox.xpi`
+            3. Seleziona `recman_firefox.xpi` — installazione permanente, nessuna configurazione richiesta
           files: |
             recman_chrome.zip
             recman_firefox.xpi

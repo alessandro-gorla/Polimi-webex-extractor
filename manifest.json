@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "RecMan PoliMi – Link Webex",
+  "version": "1.3",
+  "description": "Estrae automaticamente i link Webex dalla pagina RecMan del PoliMi.",
+  "permissions": ["webRequest", "storage"],
+  "host_permissions": [
+    "*://*.polimi.it/*",
+    "*://politecnicomilano.webex.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.polimi.it/recman_frontend/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# Build / pacchetto estensione
+*.crx
+*.pem
+*.zip
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

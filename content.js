@@ -135,46 +135,28 @@
     // Costruisce il pannello subito con i dati disponibili
     buildPanel(rows, stored);
 
-    // Lancia fetch paralleli verso tutti i link RecMan.
-    // Il browser seguirà i redirect; il background (onBeforeRedirect)
-    // li intercetterà PRIMA del CORS e salverà gli URL Webex.
-    LOG("Avvio fetch paralleli...");
-    const fetchResults = await Promise.allSettled(
-      rows.map((r) => {
-        LOG(`  fetch → ${r.href}`);
-        // redirect: "manual" ferma il browser al primo redirect (PoliMi→ldr.php):
-        // onBeforeRedirect scatta nel background prima del blocco CORS.
-        // AbortController: su Firefox fetch() con redirect:"manual" può bloccarsi
-        // indefinitamente su redirect cross-origin — il timeout di 10s lo sblocca.
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => {
-          ctrl.abort();
-          WARN(`  fetch TIMEOUT (10s) — transferId=${r.tid}, abort forzato`);
-        }, 10000);
-
-        return fetch(r.href, { credentials: "include", redirect: "manual", signal: ctrl.signal })
-          .then((res) => {
-            clearTimeout(timer);
-            LOG(`  fetch OK — transferId=${r.tid} type=${res.type} status=${res.status}`);
-            if (res.type !== "opaqueredirect") {
-              WARN(`  transferId=${r.tid}: type=${res.type} — redirect non avvenuto?`);
-            }
-          })
-          .catch((err) => {
-            clearTimeout(timer);
-            if (err.name === "AbortError") {
-              WARN(`  fetch abortito dopo timeout — transferId=${r.tid}`);
+    // Delega i fetch al background: su Firefox i fetch del content script
+    // non triggerano webRequest.onBeforeRedirect; quelli del background sì.
+    LOG("Invio fetchLinks al background...");
+    await new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          { type: "fetchLinks", hrefs: rows.map((r) => ({ href: r.href, tid: r.tid })) },
+          (res) => {
+            if (chrome.runtime.lastError) {
+              ERR("fetchLinks — sendMessage fallito:", chrome.runtime.lastError.message);
             } else {
-              ERR(`  fetch ERRORE — transferId=${r.tid}: ${err.message}`);
+              LOG(`fetchLinks — background ha avviato ${rows.length} fetch`);
             }
-          });
-      })
-    );
-
-    // Resoconto fetch
-    const ok  = fetchResults.filter((r) => r.status === "fulfilled").length;
-    const err = fetchResults.filter((r) => r.status === "rejected").length;
-    LOG(`Fetch completati — fulfilled=${ok} rejected=${err}`);
+            resolve();
+          }
+        );
+      } catch (e) {
+        ERR("fetchLinks — contesto estensione non valido:", e.message);
+        showContextInvalidatedBanner();
+        resolve();
+      }
+    });
 
     // Attende che il background processi tutti i redirect intercettati.
     // Su Firefox può servire più tempo di Chrome.

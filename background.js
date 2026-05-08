@@ -199,5 +199,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "fetchLinks") {
+    const { hrefs } = msg;
+    LOG(`fetchLinks — avvio ${hrefs.length} fetch dal background`);
+    hrefs.forEach(({ href, tid }) => {
+      fetch(href, { credentials: "include", redirect: "manual" })
+        .then((res) => LOG(`  BG fetch OK — tid=${tid} type=${res.type} status=${res.status}`))
+        .catch((err) => WARN(`  BG fetch ERRORE — tid=${tid}: ${err.message}`));
+    });
+    sendResponse({ ok: true });
+    return true;
+  }
+
   WARN(`Messaggio non gestito — type="${msg.type}"`);
 });

@@ -2,6 +2,10 @@
 *.crx
 *.pem
 *.zip
+*.xpi
+_ff/
+_signed/
+recman_chrome/
 
 # Editor
 .vscode/

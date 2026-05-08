@@ -103,6 +103,20 @@
     return result;
   }
 
+  // Estrae il nome del corso dalla prima riga della tabella.
+  // Formato cella: "086067 - NOME CORSO [sezione X] (PROF1, PROF2)"
+  // Restituisce solo "NOME CORSO".
+  function getCourseName() {
+    const firstRow = document.querySelector("#transfers tbody tr");
+    if (!firstRow) return "Registrazioni";
+    const raw = firstRow.querySelectorAll("td")[2]?.textContent.trim() || "";
+    LOG(`getCourseName — raw: "${raw}"`);
+    const match = raw.match(/^\d+\s*-\s*(.+?)(?:\s*[\[(]|$)/);
+    const name = match ? match[1].trim() : raw;
+    LOG(`getCourseName — estratto: "${name}"`);
+    return name || "Registrazioni";
+  }
+
   // ──────────────────────────────────────────────────────────────
   // Estrazione principale (onclick del FAB)
   // ──────────────────────────────────────────────────────────────
@@ -194,16 +208,27 @@
       "display:flex", "flex-direction:column", "font-family:sans-serif", "font-size:13px",
     ].join(";");
 
-    // Header con titolo e pulsanti di controllo
+    // Header con titolo dinamico (nome corso estratto dalla tabella) e pulsanti
     const hdr = document.createElement("div");
     hdr.style.cssText = "padding:13px 16px;background:#f7f7f7;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;";
-    hdr.innerHTML = `
-      <strong style="font-size:15px">📹 Link Webex – FISICA</strong>
-      <div style="display:flex;gap:8px">
-        <button id="_rm_cpall" style="font-size:12px;padding:4px 10px;border:1px solid #ccc;border-radius:5px;cursor:pointer;background:#fff">Copia tutto</button>
-        <button id="_rm_clear" style="font-size:12px;padding:4px 10px;border:1px solid #ccc;border-radius:5px;cursor:pointer;background:#fff">🗑 Reset</button>
-        <button id="_rm_close" style="font-size:12px;padding:4px 10px;border:1px solid #ccc;border-radius:5px;cursor:pointer;background:#fff">✕</button>
-      </div>`;
+
+    const title = document.createElement("strong");
+    title.style.cssText = "font-size:15px";
+    title.textContent = "📹 " + getCourseName();
+
+    const btnGroup = document.createElement("div");
+    btnGroup.style.cssText = "display:flex;gap:8px";
+
+    const btnStyle = "font-size:12px;padding:4px 10px;border:1px solid #ccc;border-radius:5px;cursor:pointer;background:#fff";
+    const btnCopy  = document.createElement("button"); btnCopy.id  = "_rm_cpall"; btnCopy.style.cssText = btnStyle; btnCopy.textContent = "Copia tutto";
+    const btnClear = document.createElement("button"); btnClear.id = "_rm_clear"; btnClear.style.cssText = btnStyle; btnClear.textContent = "🗑 Reset";
+    const btnClose = document.createElement("button"); btnClose.id = "_rm_close"; btnClose.style.cssText = btnStyle; btnClose.textContent = "✕";
+
+    btnGroup.appendChild(btnCopy);
+    btnGroup.appendChild(btnClear);
+    btnGroup.appendChild(btnClose);
+    hdr.appendChild(title);
+    hdr.appendChild(btnGroup);
     panel.appendChild(hdr);
 
     // Barra di stato — mostra progresso in tempo reale
